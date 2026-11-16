@@ -1,0 +1,449 @@
+---
+title: "Compte-rendu exo"
+author: "Diedhiou Arnaud"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+# Bioinformatics Final Exam 2026
+
+## Créer un environnement de travail
+
+```{}
+cd Bureau
+mkdir devoir
+cd devoir # création du répertoire de travail
+mkdir data
+mkdir work
+ls #vérifier que les dossiers soient là
+```
+
+## Exercise 1 – Take inventory of the dataset
+
+### Question 1.1
+
+**Look at the first record of `popA_ind01.fastq` with `head`. Identify the four lines.**
+
+### Réponse
+
+```{}
+head -n 4 ~/data/exam2026/popA_ind01.fastq
+```
+
+Les quatre lignes correspondent à :
+
+- ligne 1 : identifiant du read -> e.g @SRR
+- ligne 2 : séquence nucléotidique e.g TACCA
+- ligne 3 : séparateur (`+`) 
+- ligne 4 : scores de qualité e.g **$--@@
+
+---
+
+### Question 1.2
+
+**Count the lines of `popA_ind01.fastq`, then compute the number of reads.**
+
+### Réponse
+
+```{}
+wc -l popA_ind01.fastq # calcule du nombre de ligne totale
+```
+Dans ce fichier il y a 1200 lignes au total
+```{}
+
+n = $(('wc -l < popA_ind01.fastq' / 4)) #calcule du nombre de read
+echo "$n"
+```
+Chaque read occupant 4 lignes dans un fichier FASTQ.
+On obtient 300 reads pour le fichier. (1200/4)
+
+---
+
+### Question 1.3
+
+**Write `ex1_count_reads.sh`.**
+
+### Réponse
+
+Le script calcule le nombre de reads de chaque fichier et affiche :
+
+- nom du fichier
+- population
+- nombre de reads
+
+```{}
+nano ex1.count_reads.sh #création du script 
+
+```
+Dans ce script nous allons écrire notre fonction.
+```{}
+#!/bin/  
+
+#Fonction qui permet de donner le nom de tout les fichiers, leur population et le nombre de reads
+for f in "$@" #iter dans tous les fichiers données
+do 
+   pop=$(echo "$f" | cut -d "_" -f1) #récupére le nom de la pop
+   n=$((`wc -l < "$f"`/4)) #nombre de reads
+   echo -e "$f\t$pop\t$n" #print le nom du fichier,la pop et le nombre de reads
+done
+
+```
+On oublie pas d'autoriser l'accès à tout le monde
+```{}
+chmod a+x ex1.count_reads.sh #donne l'accès au code
+```
+---
+
+### Question 1.4
+
+**Run the script on population A, then on all files.**
+
+### Réponse
+
+```{}
+./ex1.count_reads.sh popA_*.fastq #lance le code uniquement sur les populations A
+```
+-popA_ind01.fastq	popA	300
+-popA_ind02.fastq	popA	250
+-popA_ind03.fastq	popA	200
+
+```{}
+./ex1.count_reads.sh pop*.fastq #lance le code sur tous les fichiers
+```
+Les résultats montrent le nombre de reads pour chaque individu.
+
+---
+
+### Question 1.5
+
+**How many reads are there in total for population A and B?**
+
+### Réponse
+
+On observe des différences entre les populations A et B mais également entre les individus au sein des populations.
+
+-Population A :
+
+-popA_ind01.fastq	popA	300
+-popA_ind02.fastq	popA	250
+-popA_ind03.fastq	popA	200
+
+-Population B :
+
+-popB_ind01.fastq	popB	400
+-popB_ind02.fastq	popB	275
+-popB_ind03.fastq	popB	225
+---
+
+### Question 1.6
+
+**Why does `grep -c "^@"` not always give the correct number of reads?**
+
+### Réponse
+
+Le caractère `@` peut également apparaître dans les lignes de qualité.
+
+Par conséquent :
+
+```{}
+grep -c "^@" #résultat = 307
+```
+
+peut surestimer le nombre réel de reads.
+
+En revanche :
+
+```{}
+grep -c "^@SRR" #résultat = 300
+```
+
+
+fonctionne correctement ici car les identifiants commencent tous par `@SRR`. Il est préférable de préciser ce que l'on cherche de manière précise avec Grep, d'autant plus dans l'on à un identifiant commun (ici `@SRR`)
+
+Il est donc préférable de compter les lignes du fichier puis de diviser par quatre.
+
+---
+
+## Exercise 2 – Which individuals look unusable?
+
+### Question 2.1
+
+**Count the reads without any `N`.**
+
+### Réponse
+
+```{}
+awk 'NR%4==2' popA_ind01.fastq # sélectionne uniquement les lignes de séquence
+grep -v "N" # permet de regrouper les lignes possédanr "N"
+wc -l # permet de compter le nombre de valeur
+
+awk 'NR%4==2' popA_ind01.fastq | grep -v "N" | wc -l
+```
+Pour popA_ind01 on obtient 278 reads qui ne contiennent pas de "N". Les séquences sont donc relativement qualitative.
+
+---
+
+### Question 2.1
+
+**Compute the percentage.**
+
+### Réponse
+
+```{}
+ntot=$(( `wc -l < popA_ind01.fastq`/4 ))
+
+without_N=$(awk 'NR%4==2' popA_ind01.fastq | grep -v "N" | wc -l)
+
+percent=$((100*whithout_N/ntot))
+```
+On obtient 92% de séquence sans "N".
+
+---
+
+### Question 2.3
+
+**Write `ex2_quality_N.sh`.**
+
+### Réponse
+
+Le script affiche :
+
+- nom du fichier
+- nombre total de reads
+- nombre de reads sans `N`
+- pourcentage
+
+On crée un nouveau script avec nano.
+```{}
+nano ex2_quality_N.sh
+```
+
+```{}
+#!/bin/
+for f in "$@"; # iter sur tous les fichiers données
+do 
+   ntot=$((`wc -l <"$f"`/4))   # calcule le nombre de lignes totales
+   N_count=$(awk 'NR%4==2' "$f" | grep -v "N" | wc -l) # compte le nombre de ligne sans "N"
+   percent=$((100*N_count/ntot)) # calcule le pourcentage de ligne sans "N"
+   echo -e "$f\t$ntot\t$N_count\t$percent" # écrit les résulats: nom du fichier, nombre de ligne totale, Nombre de ligne sans N, %de N
+done
+
+```
+On autorise l'accès au script
+```{}
+chmod a+x ex2_quality_N.sh 
+```
+
+---
+
+### Question 2.4
+
+**Which individual would you remove?**
+
+### Réponse
+
+```{}
+./ex2_quality_N.sh pop*.fastq 
+```
+
+-popA_ind01.fastq	300	278	92
+-popA_ind02.fastq	250	217	86
+-popA_ind03.fastq	200	181	90
+-popB_ind01.fastq	400	364	91
+-popB_ind02.fastq	275	252	91
+-popB_ind03.fastq	225	58	25
+
+L'individu présentant le plus faible pourcentage de reads sans `N` est le plus susceptible de poser problème et devrait être exclu de l'analyse. Ici c'est l'individu 3 de la population B qui risque de poser problème.
+
+---
+
+## Exercise 3 – Check the restriction site
+
+### Question 3.1
+
+**Count the reads beginning with `TGCA`.**
+
+### Réponse
+
+```{}
+awk 'NR%4==2' popA_ind01.fastq # récupére uniquement les lignes avec les séquences
+grep "^TGCA" # récupére toutes les itérations de TGCA en début de chaque ligne (^)
+wc -l # compte l'ensemble des lignes dans lequel on retrouve TGCA au début
+
+awk 'NR%4==2' popA_ind01.fastq | grep "^TGCA" | wc -l # test sur un seul fichier
+```
+résultat= 284	reads qui commencent par TGCA
+
+---
+
+### Question 3.2
+
+**Write `ex3_cutsite.sh`.**
+
+### Réponse
+
+Le script prend :
+
+- le motif (`TGCA`)
+- les fichiers FASTQ
+
+et calcule le nombre de reads commençant par ce motif.
+
+```{}
+nano ex3_cutsite.sh
+```
+motif= $1 -> permet de changer le motif sans changer le code
+```{}
+#!/bin/bash
+
+motif="$1"
+shift
+
+for f in "$@";
+do 
+   ntot=$((`wc -l <"$f"`/4)) # calcule du nombre de ligne
+   n_count=$(awk 'NR%4==2' "$f" | grep -c "^${motif}") # calcule du nombre de motif trouvé
+   percent=$((100 * n_count/ ntot)) # calcule du % de read commencant par le motif
+   echo -e "$f\t${motif}\t$n_count\t$percent" 
+done
+
+```
+On donne l'accès au script.
+```{}
+chmod a+x ex3_cutsite.sh
+```
+---
+
+### Question 3.3
+
+**Output format: file  motif  n_reads_with_motif  percent**
+
+### Réponse
+
+Le script affiche :
+
+- fichier
+- motif
+- nombre de reads
+- pourcentage
+
+```{}
+./ex3_cutsite.sh TGCA pop*.fastq 
+```
+On obtient alors ces résultats pour l'ensemble des fichiers.
+
+-popA_ind01.fastq	TGCA	284	94
+-popA_ind02.fastq	TGCA	233	93
+-popA_ind03.fastq	TGCA	194	97
+-popB_ind01.fastq	TGCA	382	95
+-popB_ind02.fastq	TGCA	260	94
+-popB_ind03.fastq	TGCA	52	23
+
+---
+
+### Question 3.4
+
+**Which individual behaves differently?**
+
+### Réponse
+
+L'individu présentant le plus faible pourcentage de reads commençant par `TGCA` est de nouveau le même individu qu'à l'exercice 2 (individu 3 de la pop B). Ces résultats ne sont pas forcément surprenants au vu des résultats de la question précédente.
+
+Il y a potentiellement deux explications possibles :
+
+- contamination ou présence d'adaptateurs qui n'ont pas été nettoyés après le séquençage.
+- des erreurs de séquençage, les reads de cet individu possèdent déjà de nombreux N. Notre fonction ne cherche le motif que sur le début de chaque séquence. Il est donc possible que les premiers nucléotides soient des N. 
+
+---
+
+## Exercise 4 – A small test dataset and archiving
+
+### Question 4.1
+
+**Create a folder `subsample`.**
+
+### Réponse
+
+# créer un sous-dossier dans le dossier data
+```{}
+mkdir subsample
+```
+
+---
+
+### Question 4.2
+
+**Write `ex4_subsample.sh`.**
+
+### Réponse
+
+Le script extrait les *n* premiers reads de chaque fichier FASTQ et les écrit dans le dossier `subsample`.
+
+---
+
+### Question 3
+
+**Check the number of lines.**
+
+### Réponse
+
+```{}
+wc -l subsample/*
+```
+
+Le nombre de lignes doit être égal à :
+
+```{}
+4 × nombre_de_reads
+```
+
+---
+
+### Question 4
+
+**Create a compressed archive.**
+
+### Réponse
+
+```{}
+tar -czvf subsample.tar.gz subsample/
+```
+
+---
+
+### Question 5
+
+**Compare the sizes.**
+
+### Réponse
+
+```{}
+du -h subsample
+
+ls -lh subsample.tar.gz
+```
+
+L'archive compressée est plus petite que le dossier original.
+
+---
+
+### Question 6
+
+**Compress one FASTQ file using `gzip`.**
+
+### Réponse
+
+```{}
+cp popA_ind01.fastq .
+
+gzip popA_ind01.fastq
+
+ls -lh
+```
+
+Le taux de compression est obtenu en comparant la taille avant et après compression.
+
+Cette compression est essentielle pour les projets de séquençage comprenant plusieurs centaines d'individus, car elle réduit fortement l'espace de stockage et accélère les transferts de données.
